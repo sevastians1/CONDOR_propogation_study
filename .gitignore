@@ -1,0 +1,2 @@
+# Ignore all LAZ point-cloud files
+*.laz

@@ -1,0 +1,25 @@
+%%% This script will call process_lidar_data on each file in raw_lidar
+%It will create a new processed_lidar_tile
+clear; clc;
+
+%%1.a Define what folder to look for raw_lidar files
+inputFolder = './data/raw_lidar';
+
+% 1.b Find all .laz files in that folder
+fileList = dir(fullfile(inputFolder, '*.laz'));
+
+%1.c Error if empty
+if isempty(fileList)
+    error('No .laz files found in folder: %s', inputFolder);
+end
+    
+%%2 Loop through each file individually and feed it to the function
+    for i = 1:length(fileList)
+        % Build the full file path for the current file
+        currentFileName = fullfile(fileList(i).folder, fileList(i).name);
+
+        % Call your function, passing the filename as the required input
+        processLidarTile(currentFileName);
+    end
+
+    fprintf('All files processed successfully!\n');

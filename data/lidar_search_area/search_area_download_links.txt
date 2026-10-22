@@ -1,0 +1,6 @@
+https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CA_AZ_FEMA_R9_Lidar_2017_D18/CA_FEMA_Z4_B1_2018/LAZ/USGS_LPC_CA_AZ_FEMA_R9_Lidar_2017_D18_59222065.laz
+https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CA_AZ_FEMA_R9_Lidar_2017_D18/CA_FEMA_Z4_B1_2018/LAZ/USGS_LPC_CA_AZ_FEMA_R9_Lidar_2017_D18_59222061.laz
+https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CA_AZ_FEMA_R9_Lidar_2017_D18/CA_FEMA_Z4_B1_2018/LAZ/USGS_LPC_CA_AZ_FEMA_R9_Lidar_2017_D18_59172065.laz
+https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CA_AZ_FEMA_R9_Lidar_2017_D18/CA_FEMA_Z4_B1_2018/LAZ/USGS_LPC_CA_AZ_FEMA_R9_Lidar_2017_D18_59172061.laz
+https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CA_AZ_FEMA_R9_Lidar_2017_D18/CA_FEMA_Z4_B1_2018/LAZ/USGS_LPC_CA_AZ_FEMA_R9_Lidar_2017_D18_59132065.laz
+https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CA_AZ_FEMA_R9_Lidar_2017_D18/CA_FEMA_Z4_B1_2018/LAZ/USGS_LPC_CA_AZ_FEMA_R9_Lidar_2017_D18_59132061.laz
