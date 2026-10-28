@@ -19,7 +19,7 @@ end
         currentFileName = fullfile(fileList(i).folder, fileList(i).name);
 
         % Call your function, passing the filename as the required input
-        process_lidar_data(currentFileName);
+        process_one_lidar_tile(currentFileName);
     end
 
     fprintf('All files processed successfully!\n');

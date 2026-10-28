@@ -1,4 +1,4 @@
-function process_lidar_data(fileName)
+function process_one_lidar_tile(fileName)
     
     %% 1.a Load the LiDAR tile and read the point cloud
     fprintf('Loading LiDAR file: %s\n', fileName);
@@ -52,7 +52,7 @@ function process_lidar_data(fileName)
     
     %% 4. Process Vegetation Points (Classes 3, 4, 5) -> 3D Obstacles
     fprintf('Extracting vegetation points...\n');
-    ptCloudVeg = readPointCloud(reader, 'Classification', [3, 4, 5]);
+    ptCloudVeg = readPointCloud(reader, 'Classification', [1, 3, 4, 5]);
     Xv = ptCloudVeg.Location(:, 1);
     Yv = ptCloudVeg.Location(:, 2);
     Zv = ptCloudVeg.Location(:, 3);
