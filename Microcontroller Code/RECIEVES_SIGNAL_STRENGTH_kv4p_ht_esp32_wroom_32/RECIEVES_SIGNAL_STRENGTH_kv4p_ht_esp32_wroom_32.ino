@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*
 #include <Arduino.h>
 #include <BluetoothSerial.h>
 #include <DRA818.h>
@@ -33,6 +34,57 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "buttons.h"
 #include "utils.h"
 #include "board.h"
+
+#include <Wire.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+BLEServer* pServer = NULL;
+BLECharacteristic* pTxCharacteristic = NULL;
+bool deviceConnected = false;
+
+volatile float latitude = 0.0;
+volatile float longitude = 0.0;
+volatile float altitude = 0.0;
+volatile bool newGpsDataReceived = false;
+volatile uint8_t RSSI = 0;
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      Serial.println("\n[BLE] iPhone Connected!");
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      Serial.println("\n[BLE] iPhone Disconnected! Restarting advertising...");
+      pServer->getAdvertising()->start();
+    }
+};
+
+class MyCallbacks: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) override {
+    std::string rxValue = pCharacteristic->getValue();
+
+    // Check for Bluefruit Location packet signature: '!L'
+    if (rxValue.length() >= 14 && rxValue[0] == '!' && rxValue[1] == 'L') {
+      const uint8_t* bytes = (const uint8_t*)rxValue.data();
+
+      memcpy((void*)&latitude,  bytes + 2, 4);
+      memcpy((void*)&longitude, bytes + 6, 4);
+      memcpy((void*)&altitude,  bytes + 10, 4);
+      newGpsDataReceived = true;
+    }
+  }
+};
+
+
 
 const uint16_t FIRMWARE_VER = 17;
 
@@ -380,6 +432,37 @@ void setup() {
   Serial.setTxBufferSize(USB_BUFFER_SIZE);
   protocolUsbSession.windowSize = USB_BUFFER_SIZE;
   Serial.begin(115200);
+
+  while (!Serial && millis() < 3000);
+
+  //Wire.begin(SDA_PIN, SCL_PIN);
+
+  // Initialize BLE
+  BLEDevice::init("Kez Version");
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  // TX Characteristic (sends CSV data back to phone)
+  pTxCharacteristic = pService->createCharacteristic(
+                        CHARACTERISTIC_UUID_TX,
+                        BLECharacteristic::PROPERTY_NOTIFY
+                      );
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  // RX Characteristic (receives location data from phone)
+  BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(
+                                           CHARACTERISTIC_UUID_RX,
+                                           BLECharacteristic::PROPERTY_WRITE
+                                         );
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+
+  pService->start();
+  pServer->getAdvertising()->start();
+
+  Serial.println("System Ready! CSV format: timestamp_ms, rssi_dbm, lat, lon, alt");
+
   Serial.println();
   Serial.println("===== kv4p serial output =====");
   Serial.println("This port will emit binary data using the kv4p protocol.");
@@ -636,6 +719,7 @@ void rssiLoop() {
         uint8_t rssi = (uint8_t)roundf(constrain(txAudioLevel, 0.0f, 255.0f));
         if (latestRssi != rssi) {
           latestRssi = rssi;
+          RSSI = latestRssi;
           markDeviceStateDirty();
         }
       } else if (mode == MODE_RX && !freeDv2400bEnabled()) {
@@ -651,6 +735,7 @@ void rssiLoop() {
             uint8_t rssi = (uint8_t)rssiInt;
             if (latestRssi != rssi) {
               latestRssi = rssi;
+              RSSI = latestRssi;
               markDeviceStateDirty();
               _LOGI("Command Here, %u", latestRssi);
             }
@@ -744,18 +829,240 @@ void squelchLoop() {
 }
 
 void loop() {
-  squelchLoop();
+  //squelchLoop();
   debugLoop();
   ledLoop();
-  buttonsLoop();
-  protocolLoop();
-  bluetoothLoop();
-  bleKissLoop();
-  rxAudioLoop();
-  ax25TxLoop();
-  txAudioLoop();
+  //buttonsLoop();
+  //protocolLoop();
+  //bluetoothLoop();
+  //bleKissLoop();
+  //rxAudioLoop();
+  //ax25TxLoop();
+  //txAudioLoop();
   rssiLoop();
-  deviceStateLoop();
+  bleCsvLoop();
+  //deviceStateLoop();
+
+
+  if (true) {
+
+
+    // Create a CSV-formatted string
+    char csvLine[128];
+      snprintf(csvLine, sizeof(csvLine), "%lu,%u,%.6f,%.6f,%.1f\n",
+         millis(), RSSI, latitude, longitude, altitude);
+
+    // Print CSV row to Serial Monitor
+    Serial.print(csvLine);
+
+    // Send CSV row to Phone via BLE TX Characteristic
+    if (deviceConnected) {
+      pTxCharacteristic->setValue(csvLine);
+      pTxCharacteristic->notify();
+    }
+    else{
+      Serial.print("log failed");
+    }
+  }
 
   delay(3000);
 }
+
+*/
+
+
+
+#include <Arduino.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+#include <DRA818.h>
+#include "globals.h"
+#include "state.h"
+#include "protocol.h"
+#include "board.h"
+
+// Stub definitions required by protocol.h / globals.h during linking
+void handleCommands(ProtocolSession &session, RcvCommand command, uint8_t *params, size_t param_len) {}
+void handleAx25Data(uint8_t *ax25, size_t ax25_len) {}
+void handleKissParameter(uint8_t command, uint8_t value) {}
+
+// --- Radio & Timing Configuration ---
+const float RADIO_FREQ_MHZ = 147.3000f; // 147.3 is a multiple of 12.5kHz. Set frequency here
+const uint32_t RSSI_POLL_INTERVAL_MS = 100;
+const uint32_t BLE_SEND_INTERVAL_MS  = 2000;
+
+DRA818 sa818_vhf(&Serial2, SA818_VHF);
+DRA818 sa818_uhf(&Serial2, SA818_UHF);
+DRA818 &sa818 = sa818_vhf;
+
+uint32_t lastRssiPollMs = 0;
+uint32_t lastBleSendMs  = 0;
+
+// --- BLE Configuration (Nordic UART Service for Bluefruit Connect) ---
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
+BLEServer* pServer = nullptr;
+BLECharacteristic* pTxCharacteristic = nullptr;
+bool deviceConnected = false;
+
+volatile float latitude  = 0.0f;
+volatile float longitude = 0.0f;
+volatile float altitude  = 0.0f;
+
+class MyServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) override {
+    deviceConnected = true;
+    Serial.println("[BLE] iPhone Connected!");
+  }
+
+  void onDisconnect(BLEServer* pServer) override {
+    deviceConnected = false;
+    Serial.println("[BLE] iPhone Disconnected! Restarting advertising...");
+    pServer->getAdvertising()->start();
+  }
+};
+
+class MyCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) override {
+    std::string rxValue = pCharacteristic->getValue();
+
+    // Parse Bluefruit Connect Location packet ('!L' + 3 floats)
+    if (rxValue.length() >= 14 && rxValue[0] == '!' && rxValue[1] == 'L') {
+      const uint8_t* bytes = (const uint8_t*)rxValue.data();
+      memcpy((void*)&latitude,  bytes + 2, 4);
+      memcpy((void*)&longitude, bytes + 6, 4);
+      memcpy((void*)&altitude,  bytes + 10, 4);
+    }
+  }
+};
+
+void setupRadio() {
+  if (hw.rfModuleType == RF_SA818_UHF) {
+    sa818 = sa818_uhf;
+  } else {
+    sa818 = sa818_vhf;
+  }
+
+  // Power on radio module and force RX mode (PTT HIGH = RX)
+  pinMode(hw.pins.pinPd, OUTPUT);
+  digitalWrite(hw.pins.pinPd, HIGH);
+  pinMode(hw.pins.pinPtt, OUTPUT);
+  digitalWrite(hw.pins.pinPtt, HIGH);
+  pinMode(hw.pins.pinSq, INPUT);
+
+  if (hw.features.hasHL) {
+    pinMode(hw.pins.pinHl, OUTPUT);
+    digitalWrite(hw.pins.pinHl, HIGH); // Low power while receiving
+  }
+
+  Serial2.begin(9600, SERIAL_8N1, hw.pins.pinRfModuleRxd, hw.pins.pinRfModuleTxd);
+  Serial2.setTimeout(10);
+  delay(500); // Allow radio module to boot
+
+  Serial.print("Connecting to SA818/DRA818 radio... ");
+  bool found = false;
+  for (int i = 0; i < 5; i++) {
+    if (sa818.handshake()) {
+      found = true;
+      break;
+    }
+    delay(200);
+  }
+
+  if (found) {
+    Serial.println("OK!");
+    sa818.volume(hw.volume);
+    sa818.filters(false, false, false);
+    // Tune bandwidth (25K), TX freq, RX freq, no CTCSS, squelch 0
+    sa818.group(DRA818_25K, RADIO_FREQ_MHZ, RADIO_FREQ_MHZ, 0, 0, 0);
+  } else {
+    Serial.println("FAILED! Check board.h pins or radio power.");
+  }
+}
+
+void setupBle() {
+  BLEDevice::init("KV4P GPS Logger");
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  pTxCharacteristic = pService->createCharacteristic(
+    CHARACTERISTIC_UUID_TX,
+    BLECharacteristic::PROPERTY_NOTIFY
+  );
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  BLECharacteristic *pRxCharacteristic = pService->createCharacteristic(
+    CHARACTERISTIC_UUID_RX,
+    BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR
+  );
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+
+  pService->start();
+  pServer->getAdvertising()->start();
+  Serial.println("[BLE] Advertising as 'KV4P GPS Logger'");
+}
+
+void pollRssi() {
+  // Exact same RSSI query method as the original KV4P rssiLoop()
+  Serial2.println("RSSI?");
+  String rssiResponse = Serial2.readString();
+  if (rssiResponse.length() > 7) {
+    String rssiStr = rssiResponse.substring(5);
+    int rssiInt    = rssiStr.toInt();
+    if (rssiInt >= 0 && rssiInt <= 255) {
+      latestRssi = (uint8_t)rssiInt;
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial && millis() < 2000);
+
+  boardSetup(); // Initializes hw.pins for your specific KV4P board revision
+  setupRadio();
+  setupBle();
+
+  Serial.println("Ready! CSV format: timestamp_ms,rssi,lat,lon,alt");
+}
+
+void loop() {
+  uint32_t now = millis();
+
+  // 1. Poll RSSI from radio every 100 ms
+  if (now - lastRssiPollMs >= RSSI_POLL_INTERVAL_MS) {
+    lastRssiPollMs = now;
+    pollRssi();
+  }
+
+  // 2. Print & send CSV over BLE every 2000 ms
+  if (now - lastBleSendMs >= BLE_SEND_INTERVAL_MS) {
+    lastBleSendMs = now;
+
+    char csvLine[128];
+    snprintf(csvLine, sizeof(csvLine), "%lu,%u,%.6f,%.6f,%.1f\n",
+             now, latestRssi, latitude, longitude, altitude);
+
+    Serial.print(csvLine);
+
+    if (deviceConnected && pTxCharacteristic != nullptr) {
+      pTxCharacteristic->setValue(csvLine);
+      pTxCharacteristic->notify();
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
